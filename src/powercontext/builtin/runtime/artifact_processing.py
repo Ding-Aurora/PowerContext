@@ -68,6 +68,7 @@ from powercontext.builtin.runtime.processing_contracts import (
     WorkerEntrypoint,
 )
 from powercontext.builtin.runtime.protocols import RuntimeTracing
+from powercontext.builtin.runtime.processing_discovery import scopes_at_source_threshold
 
 logger = logging.getLogger(__name__)
 _OCEANBASE_TICK_SECONDS = 1.0
@@ -117,6 +118,7 @@ class ArtifactProcessingBinding:
     # Only automatic admission is filtered; already accepted requests retain
     # their own Worker authorization and domain completion semantics.
     automatic_scope_filter: Callable[[AsyncConnection, tuple[str, ...]], Awaitable[frozenset[str]]] | None = None
+    source_count_threshold: int | None = None
 
     def __post_init__(self) -> None:
         if not self.binding_name or self.binding_name != self.binding_name.strip():
@@ -400,6 +402,8 @@ class _FamilyState:
     notification_at_start: int = 0
     discovery_pending: bool = True
     next_schedule_at: float | None = None
+    count_after: int = 0
+    next_count_at: float = 0.0
     next_discovery_at: float = 0.0
     automatic_next: bool = False
     overflow_not_before: float = 0.0
@@ -656,6 +660,48 @@ class ArtifactProcessingSupervisor:
         else:
             await self._discover_requested(state)
             await self._discover_automatic(state)
+        await self._discover_source_count(state)
+
+    async def _discover_source_count(self, state: _FamilyState) -> None:
+        binding = state.binding
+        threshold = binding.source_count_threshold
+        loop = asyncio.get_running_loop()
+        if threshold is None or loop.time() < state.next_count_at:
+            return
+        capacity = self._fresh_capacity(state)
+        if capacity <= 0:
+            return
+
+        admitted = []
+        after = state.count_after
+        async with self._database.transaction() as connection:
+            await self._leases.require_fence(connection, self._require_current_fence())
+            rows = await self._intents.scan(
+                connection, binding.binding_name, after_sequence=after, limit=_DISCOVERY_PAGE_SIZE, dirty_only=True,
+            )
+            candidates = tuple(
+                row.scope_id for row in rows
+                if row.requested_generation == row.handled_generation
+                and row.scope_id not in state.running
+                and row.scope_id not in state.queued
+                and row.scope_id not in state.retries
+            )
+            eligible = await scopes_at_source_threshold(connection, candidates, binding.binding_name, threshold)
+            for row in rows:
+                after = row.pending_sequence
+                if row.scope_id not in eligible:
+                    continue
+                current = await self._intents.load(connection, row.scope_id, binding.binding_name, for_update=True)
+                if current is not None and current.requested_generation == current.handled_generation:
+                    await self._intents.request(connection, row.scope_id, binding.binding_name)
+                    admitted.append(row.scope_id)
+                    if len(admitted) == capacity:
+                        break
+        has_more = len(rows) == _DISCOVERY_PAGE_SIZE or (rows and after != rows[-1].pending_sequence)
+        state.count_after = after if has_more else 0
+        state.next_count_at = loop.time() + (_DISCOVERY_PAGE_DELAY_SECONDS if has_more else self._tick)
+        for scope in admitted:
+            self._enqueue(state, scope)
 
     async def _discover_requested(self, state: _FamilyState) -> None:
         capacity = self._fresh_capacity(state)
@@ -1093,6 +1139,8 @@ class ArtifactProcessingSupervisor:
                 continue
             if state.next_schedule_at is not None:
                 deadlines.append(state.next_schedule_at)
+            if state.binding.source_count_threshold is not None and self._fresh_capacity(state) > 0:
+                deadlines.append(max(state.next_count_at, state.next_discovery_at))
             if state.discovery_pending or state.scan_in_progress or not state.reconcile_complete or state.degraded:
                 deadlines.append(max(now, state.next_discovery_at))
         return None if not deadlines else max(0.001, min(deadlines) - now)

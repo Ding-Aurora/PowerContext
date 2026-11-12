@@ -16,6 +16,7 @@
 
 from __future__ import annotations
 
+
 from datetime import UTC, datetime
 
 from sqlalchemy import and_, delete, func, insert, or_, select, update
@@ -445,6 +446,7 @@ class TopicMemoryRepository:
         query_vector: tuple[float, ...] | None = None,
         embedding_profile: EmbeddingProfile | None = None,
         admission: AdmissionFloor | None = None,
+        excluded_artifact_ids: frozenset[str] = frozenset(),
     ) -> TopicMemorySearchResult:
         """Search current complete projections and fuse two or four logical channels.
 
@@ -480,13 +482,20 @@ class TopicMemoryRepository:
         request = TopicMemorySearchRequest(
             query=query,
             analyzed_query=" ".join(query_terms),
-            candidate_limit=min(MAX_TOPIC_MEMORY_CHANNEL_CANDIDATES, max(limit * 4, 32)),
+            candidate_limit=min(MAX_TOPIC_MEMORY_CHANNEL_CANDIDATES, max(limit * 4, 32) + len(excluded_artifact_ids)),
             mode=used_mode,
             query_vector=query_vector,
             embedding_profile=embedding_profile,
             admission=admission,
         )
         channels = await self.index.search(connection, scope_id, request)
+        if excluded_artifact_ids:
+            channels = channels.model_copy(update={
+                name: tuple(
+                    hit for hit in getattr(channels, name) if hit.artifact_ref.artifact_id not in excluded_artifact_ids
+                )
+                for name in ("topic_fts", "topic_vector", "detail_fts", "detail_vector")
+            })
         await self._check_retrieval_shape(connection)
         outcome = _fuse_topic_memory_rankings(query, channels, limit, mode=used_mode, admission=admission)
         return TopicMemorySearchResult(

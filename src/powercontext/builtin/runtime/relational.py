@@ -986,6 +986,8 @@ class RelationalContexts:
     ) -> TopicMemorySearchResult:
         """Search current active Topic projections in this deployment."""
 
+        from powercontext.builtin.runtime.source_lifecycle import excluded_topic_ids
+
         if query_embedding is not None:
             query_vector = query_embedding.query_vector
             embedding_profile = query_embedding.embedding_profile
@@ -1000,6 +1002,7 @@ class RelationalContexts:
                 query_vector=query_vector,
                 embedding_profile=embedding_profile,
                 admission=admission,
+                excluded_artifact_ids=await excluded_topic_ids(connection, scope),
             )
 
     async def search_skills(
