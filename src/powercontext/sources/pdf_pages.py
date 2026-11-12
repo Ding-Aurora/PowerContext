@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import io
+import math
 import re
 from collections import Counter
 
@@ -23,17 +24,45 @@ _STOP_WORDS = frozenset({
     "from", "give", "has", "have", "how", "if", "in", "is", "it", "of", "on", "or", "reported",
     "state", "shown", "that", "the", "their", "then", "this", "to", "use", "using", "was", "were",
     "what", "when", "which", "who", "with", "within", "year", "fy", "answer", "calculate", "company",
+    "amount", "assume", "details", "following", "information", "millions", "perspective", "primarily",
+    "question", "relying", "respond", "response", "shown", "using", "usd", "important", "materially",
+    "ongoing", "analyst", "directly", "explicitly", "outlined", "unadjusted", "define", "investment",
+    "less", "only", "perspective", "quantity",
 })
-_EXPANSIONS = {
-    "ebitda": ("operating", "income", "depreciation", "amortization"),
-    "capex": ("capital", "spending", "expenditures"),
-    "geographies": ("geographic", "regions", "countries", "markets", "international"),
-    "geography": ("geographic", "regions", "countries", "markets", "international"),
-    "legal": ("proceedings", "litigation", "lawsuits"),
-    "battles": ("proceedings", "litigation"),
-    "restructuring": ("impairment", "charges", "costs"),
-    "margin": ("revenue", "sales", "operating", "income"),
+_CONCEPTS = {
+    "amortization": ("amortization", "amortisation"),
+    "battles": ("legal", "proceedings", "litigation", "lawsuit", "contingencies"),
+    "capex": ("capex", "capital", "expenditures", "spending", "purchases", "property", "plant", "equipment"),
+    "depreciation": ("depreciation", "depreciated"),
+    "ebitda": ("ebitda", "operating", "income", "depreciation", "amortization"),
+    "expenditure": ("expenditure", "expenditures", "spending", "purchases"),
+    "expenditures": ("expenditure", "expenditures", "spending", "purchases"),
+    "geographies": ("geographic", "geographies", "regions", "countries", "markets", "international", "segments"),
+    "geography": ("geographic", "geographies", "regions", "countries", "markets", "international", "segments"),
+    "income": ("income", "earnings", "profit"),
+    "legal": ("legal", "proceedings", "litigation", "lawsuit", "contingencies"),
+    "margin": ("margin", "revenue", "sales", "operating", "income"),
+    "net": ("net",),
+    "ppne": ("property", "plant", "equipment", "net"),
+    "restructuring": ("restructuring", "productivity", "impairment", "charges", "costs"),
+    "revenue": ("revenue", "revenues", "sales"),
+    "sales": ("sales", "revenue", "revenues"),
+    "operating": ("operating", "operations"),
+    "statements": ("statement", "statements", "consolidated"),
+    "flows": ("flows", "activities"),
 }
+_PHRASES = (
+    ("legal proceedings", 9.0),
+    ("consolidated statement of income", 8.0),
+    ("consolidated statement of operations", 8.0),
+    ("consolidated statement of cash flows", 8.0),
+    ("capital spending", 7.0),
+    ("depreciation and amortization", 7.0),
+    ("operating profit", 6.0),
+    ("operating income", 6.0),
+    ("reportable segments", 6.0),
+    ("our operations", 5.0),
+)
 
 
 class PDFDocumentInput(BaseModel):
@@ -133,18 +162,94 @@ PDF_PAGE_SOURCE_DEFINITION: SourceDefinition[PDFPageInput, PDFPageSource, PDFPag
 
 def _query_terms(question: str) -> tuple[str, ...]:
     raw = _TOKEN.findall(question.lower())
-    terms = [term for term in raw if term not in _STOP_WORDS and (len(term) > 1 or term.isdigit())]
-    for term in tuple(terms):
-        terms.extend(_EXPANSIONS.get(term, ()))
-    return tuple(dict.fromkeys(terms))
+    return tuple(dict.fromkeys(
+        term for term in raw if term not in _STOP_WORDS and (len(term) > 1 or term.isdigit())
+    ))
 
 
-def _lexical_score(text: str, terms: tuple[str, ...], backend_score: float) -> tuple[float, float]:
-    counts = Counter(_TOKEN.findall(text.lower()))
-    matched = sum(1 for term in terms if counts[term])
-    numeric = sum(1 for term in terms if term.isdigit() and counts[term])
-    repeated = sum(min(counts[term], 3) for term in terms)
-    return (matched * 5.0 + numeric * 4.0 + repeated + backend_score * 0.01, backend_score)
+def _concepts(terms: tuple[str, ...]) -> tuple[tuple[str, ...], ...]:
+    result = []
+    seen = set()
+    for term in terms:
+        concept = tuple(dict.fromkeys(_CONCEPTS.get(term, (term,))))
+        key = frozenset(concept)
+        if key not in seen:
+            seen.add(key)
+            result.append(concept)
+    return tuple(result)
+
+
+def _probes(terms: tuple[str, ...], concepts: tuple[tuple[str, ...], ...]) -> tuple[str, ...]:
+    probes: list[str] = []
+
+    def add(parts) -> None:
+        probe = " ".join(dict.fromkeys(parts))
+        if probe and probe not in probes:
+            probes.append(probe)
+
+    add(terms)
+    for concept in concepts:
+        add(concept[:4])
+        for alternative in concept:
+            if len(alternative) >= 5:
+                add((alternative,))
+    for left, right in zip(concepts, concepts[1:]):
+        add((left[0], right[0]))
+    # Single high-information terms remove the Memory service's multi-term admission
+    # floor from the recall stage. Global scoring below restores query specificity.
+    for term in terms:
+        if len(term) >= 5 or term.isdigit():
+            add((term,))
+    return tuple(probes[:24])
+
+
+def _score_candidates(candidates, concepts: tuple[tuple[str, ...], ...], terms: tuple[str, ...]):
+    tokenized = {key: _TOKEN.findall(hit.text.lower()) for key, hit in candidates.items()}
+    counts = {key: Counter(tokens) for key, tokens in tokenized.items()}
+    document_count = max(1, len(candidates))
+    document_frequency = Counter(
+        token for tokens in tokenized.values() for token in set(tokens)
+    )
+    concept_weights = tuple(
+        max(
+            math.log((document_count + 1) / (document_frequency[term] + 1)) + 1.0
+            for term in alternatives
+        )
+        for alternatives in concepts
+    )
+    total_concept_weight = sum(concept_weights) or 1.0
+    query_vocabulary = {term for alternatives in concepts for term in alternatives}
+
+    def score(item):
+        key, hit = item
+        frequencies = counts[key]
+        matched_concept_weight = 0.0
+        lexical = 0.0
+        for alternatives, concept_weight in zip(concepts, concept_weights, strict=True):
+            present = [term for term in alternatives if frequencies[term]]
+            if not present:
+                continue
+            matched_concept_weight += concept_weight
+            best = max(
+                math.log((document_count + 1) / (document_frequency[term] + 1)) + 1.0
+                for term in present
+            )
+            lexical += best * (1.0 + min(sum(frequencies[term] for term in present), 3) * 0.15)
+        coverage = matched_concept_weight / total_concept_weight
+        text = hit.text.lower()
+        phrase = sum(1 for left, right in zip(terms, terms[1:]) if f"{left} {right}" in text)
+        section = sum(
+            weight
+            for value, weight in _PHRASES
+            if value in text and query_vocabulary.intersection(value.split())
+        )
+        years = sum(1 for term in terms if term.isdigit() and frequencies[term])
+        return (
+            coverage * 18.0 + lexical + phrase * 2.5 + section + years * 1.5 + hit.score * 0.1,
+            -len(text),
+        )
+
+    return sorted(candidates.items(), key=score, reverse=True)
 
 
 async def search_pdf_pages(memory, question: str, limit: int = 10) -> tuple[MemoryCitation, ...]:
@@ -153,16 +258,20 @@ async def search_pdf_pages(memory, question: str, limit: int = 10) -> tuple[Memo
     if limit < 1:
         raise ValueError("limit must be positive")
     terms = _query_terms(question)
-    query = " ".join(terms) or question
-    page = await memory.search(SearchMemoryRequest(query=query, mode="fts", limit=max(100, limit * 8)))
-    ranked = sorted(page.hits, key=lambda hit: _lexical_score(hit.text, terms, hit.score), reverse=True)
-    seen: set[tuple[str, str, int]] = set()
+    concepts = _concepts(terms)
+    candidates = {}
+    ranks = Counter()
+    for probe in _probes(terms, concepts) or (question,):
+        page = await memory.search(SearchMemoryRequest(query=probe, mode="fts", limit=max(80, limit * 5)))
+        for rank, hit in enumerate(page.hits, start=1):
+            key = (hit.memory_ref.artifact_id, hit.entry_id, hit.entry_version_id)
+            candidates.setdefault(key, hit)
+            ranks[key] += 1.0 / (20 + rank)
+    for key, hit in tuple(candidates.items()):
+        candidates[key] = hit.model_copy(update={"score": ranks[key]})
+    ranked = _score_candidates(candidates, concepts, terms)
     citations: list[MemoryCitation] = []
-    for hit in ranked:
-        key = (hit.memory_ref.artifact_id, hit.entry_id, hit.entry_version_id)
-        if key in seen:
-            continue
-        seen.add(key)
+    for _key, hit in ranked:
         citations.append(
             MemoryCitation(
                 memory_ref=hit.memory_ref,
