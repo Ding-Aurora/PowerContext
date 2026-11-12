@@ -277,10 +277,23 @@ class PreparedContextBuilder:
         if sum(len(group.hits) for group in candidates) > self.memory_candidate_limit:
             raise PreparedContextInvariantError("memory-candidate-limit")
         addresses: list[MemoryEntryAddress] = []
+        seen_addresses: set[tuple[str, str, str, int, str, str]] = set()
         bodies: list[str] = []
         for group in candidates:
             for entry in self._memory_entries(group.memory_ref, group.hits, scope_id=group.scope_id):
-                if isinstance(entry.origin, MemoryEntryAddress) and entry.origin not in addresses:
+                if isinstance(entry.origin, MemoryEntryAddress):
+                    memory = entry.origin.memory
+                    key = (
+                        memory.scope_id,
+                        memory.artifact.family,
+                        memory.artifact.artifact_id,
+                        memory.artifact.revision,
+                        entry.origin.entry_id,
+                        entry.origin.entry_version_id,
+                    )
+                    if key in seen_addresses:
+                        continue
+                    seen_addresses.add(key)
                     addresses.append(entry.origin)
                     bodies.append(entry.content)
 

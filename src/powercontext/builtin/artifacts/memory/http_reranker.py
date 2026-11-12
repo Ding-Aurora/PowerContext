@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from heapq import nsmallest
 from typing import TYPE_CHECKING
 
 from powercontext.builtin.artifacts.memory.reranking import MemoryRerankDecision, _validate_bounds
@@ -82,5 +83,5 @@ class HTTPMemoryReranker:
             response.raise_for_status()
             scores.update(_batch_scores(response.json(object_pairs_hook=_unique_fields), set(ranks)))
 
-        ordered = sorted(scores, key=lambda rank: (-scores[rank], rank))
-        return MemoryRerankDecision(selected_ranks=tuple(ordered[:limit]), usage=InferenceUsage(requests=requests))
+        ordered = nsmallest(limit, scores, key=lambda rank: (-scores[rank], rank))
+        return MemoryRerankDecision(selected_ranks=tuple(ordered), usage=InferenceUsage(requests=requests))

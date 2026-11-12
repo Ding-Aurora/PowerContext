@@ -81,8 +81,9 @@ class SourceProcessingPendingProvider:
             rows = (await connection.execute(statement)).all()
             intents = ArtifactProcessingIntentRepository()
             cursors = SourceCursorRepository()
+            loaded = await cursors.load_many(connection, tuple(scope for scope, _ in rows), self._binding)
             for scope, high in rows:
-                cursor = await cursors.load(connection, scope, self._binding)
+                cursor = loaded.get(scope)
                 if int(high) <= (0 if cursor is None else cursor.cursor.sequence):
                     continue
                 intent = await intents.load(connection, scope, self._binding, for_update=True)

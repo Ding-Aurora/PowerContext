@@ -204,15 +204,19 @@ def _probes(terms: tuple[str, ...], concepts: tuple[tuple[str, ...], ...]) -> tu
 
 
 def _score_candidates(candidates, concepts: tuple[tuple[str, ...], ...], terms: tuple[str, ...]):
-    tokenized = {key: _TOKEN.findall(hit.text.lower()) for key, hit in candidates.items()}
-    counts = {key: Counter(tokens) for key, tokens in tokenized.items()}
+    counts = {key: Counter(_TOKEN.findall(hit.text.lower())) for key, hit in candidates.items()}
     document_count = max(1, len(candidates))
     document_frequency = Counter(
-        token for tokens in tokenized.values() for token in set(tokens)
+        token for frequencies in counts.values() for token in frequencies
     )
+    vocabulary = {term for alternatives in concepts for term in alternatives}
+    weights = {
+        term: math.log((document_count + 1) / (document_frequency[term] + 1)) + 1.0
+        for term in vocabulary
+    }
     concept_weights = tuple(
         max(
-            math.log((document_count + 1) / (document_frequency[term] + 1)) + 1.0
+            weights[term]
             for term in alternatives
         )
         for alternatives in concepts
@@ -231,7 +235,7 @@ def _score_candidates(candidates, concepts: tuple[tuple[str, ...], ...], terms: 
                 continue
             matched_concept_weight += concept_weight
             best = max(
-                math.log((document_count + 1) / (document_frequency[term] + 1)) + 1.0
+                weights[term]
                 for term in present
             )
             lexical += best * (1.0 + min(sum(frequencies[term] for term in present), 3) * 0.15)

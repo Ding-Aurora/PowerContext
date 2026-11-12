@@ -29,9 +29,13 @@ def _validate_document_id(document_id: str) -> None:
 def csv_row_source_id(document_id: str, primary_key_value: str) -> str:
     """Encode the two identity components independently, preserving their exact text."""
     _validate_document_id(document_id)
+    return _row_identity(f"csv:{quote(document_id, safe='')}:", primary_key_value)
+
+
+def _row_identity(prefix: str, primary_key_value: str) -> str:
     if not primary_key_value.strip():
         raise ValueError("primary key value must not be blank")
-    source_id = f"csv:{quote(document_id, safe='')}:{quote(primary_key_value, safe='')}"
+    source_id = prefix + quote(primary_key_value, safe="")
     if len(source_id) > MAX_SOURCE_ID_LENGTH:
         raise ValueError(f"CSV Source identity must not exceed {MAX_SOURCE_ID_LENGTH} characters")
     return source_id
@@ -77,6 +81,7 @@ class CSVRowSource(Source):
 def parse_csv_document(value: CSVDocumentInput) -> tuple[CSVRowInput, ...]:
     """Validate the entire document before exposing any of its rows."""
     _validate_document_id(value.document_id)
+    prefix = f"csv:{quote(value.document_id, safe='')}:"
     rows: list[CSVRowInput] = []
     seen: set[str] = set()
     reader = csv.reader(io.StringIO(value.content.decode("utf-8-sig"), newline=""), strict=True)
@@ -91,13 +96,18 @@ def parse_csv_document(value: CSVDocumentInput) -> tuple[CSVRowInput, ...]:
             key = fields[key_index]
             if key in seen:
                 raise ValueError(f"Duplicate CSV primary key at line {reader.line_num}")
-            rows.append(CSVRowInput(
-                document_id=value.document_id,
-                primary_key=value.primary_key,
-                primary_key_value=key,
-                columns=columns,
-                values=tuple(fields),
-            ))
+            _row_identity(prefix, key)
+            # Header, width, key and identity have all been checked above. Avoid
+            # validating and copying the shared header again for every record.
+            rows.append(
+                CSVRowInput.model_construct(
+                    document_id=value.document_id,
+                    primary_key=value.primary_key,
+                    primary_key_value=key,
+                    columns=columns,
+                    values=tuple(fields),
+                )
+            )
             seen.add(key)
     except csv.Error as exc:
         raise ValueError(f"Invalid CSV at line {reader.line_num}: {exc}") from exc
@@ -115,7 +125,11 @@ class _CSVRowAdapter:
             name=identity,
             source_id=identity,
             materialization=SourceMaterialization.CAPTURED,
-            **value.model_dump(),
+            document_id=value.document_id,
+            primary_key=value.primary_key,
+            primary_key_value=value.primary_key_value,
+            columns=value.columns,
+            values=value.values,
         )
 
     async def read(self, source: CSVRowSource, /) -> CSVRowInput:

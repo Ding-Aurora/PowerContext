@@ -577,7 +577,10 @@ class SeekDBMemoryIndex(CompositeMemoryIndex):
                 },
             )
         ).mappings().all()
+        fts_rows, vector_rows = [], []
+        for row in rows:
+            (fts_rows if row["channel"] == 0 else vector_rows).append(row)
         return MemorySearchChannels(
-            fts=memory_channel_hits((row for row in rows if row["channel"] == 0), request.memories),
-            vector=memory_channel_hits((row for row in rows if row["channel"] == 1), request.memories),
+            fts=memory_channel_hits(fts_rows, request.memories),
+            vector=memory_channel_hits(vector_rows, request.memories),
         )

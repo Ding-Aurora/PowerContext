@@ -34,14 +34,16 @@ def _sentences(text: str) -> Iterator[tuple[int, int]]:
         end = boundary.end()
         if _ABBREVIATION.search(text[max(start, end - 8):end]):
             continue
-        trimmed = text[start:end].strip()
+        segment = text[start:end]
+        trimmed = segment.strip()
         if trimmed:
-            left = start + len(text[start:end]) - len(text[start:end].lstrip())
+            left = start + len(segment) - len(segment.lstrip())
             yield left, left + len(trimmed)
         start = end
-    tail = text[start:].strip()
+    segment = text[start:]
+    tail = segment.strip()
     if tail:
-        left = start + len(text[start:]) - len(text[start:].lstrip())
+        left = start + len(segment) - len(segment.lstrip())
         yield left, left + len(tail)
 
 

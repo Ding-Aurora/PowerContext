@@ -66,9 +66,12 @@ class ContextPack:
     @classmethod
     def build(cls, items: tuple[bytes, ...]) -> ContextPack:
         payload = {"schema": _PACK, "items": _encode(items)}
-        digest = "sha256:" + hashlib.sha256(_wire(payload)).hexdigest()
+        encoded = _wire(payload)
+        digest = "sha256:" + hashlib.sha256(encoded).hexdigest()
         # The wire length includes its own decimal representation.
-        fixed = len(_wire({**payload, "digest": digest, "byte_count": 0})) - 1
+        # Joining two JSON objects drops two braces and adds one comma. Only
+        # serialize the small metadata object again, not every Base64 chunk.
+        fixed = len(encoded) + len(_wire({"digest": digest, "byte_count": 0})) - 2
         count = fixed + 1
         while count != fixed + len(str(count)):
             count = fixed + len(str(count))

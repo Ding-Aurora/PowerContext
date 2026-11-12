@@ -196,10 +196,12 @@ class _ScopedSourceLifecycle:
         async with self._runtime._context(self._scope) as context:
             service = context.artifacts.memory
             head = await service.head(context.artifacts.memory_artifact_id)
-            entries = {(entry.entry_id, entry.entry_version_id): entry for entry in await service.entries(head)}
-            if not desired.keys() <= entries.keys():
-                raise SourceLifecycleError("A registered Memory entry version is no longer current")
             states = {(entry.entry_id, entry.entry_version_id): entry.state for entry in head.content.manifest.entries}
+            if not desired.keys() <= states.keys():
+                raise SourceLifecycleError("A registered Memory entry version is no longer current")
+            if all((states[key] == "active") == available for key, available in desired.items()):
+                return
+            entries = {(entry.entry_id, entry.entry_version_id): entry for entry in await service.entries(head)}
             withdrawn = tuple(entries[key] for key, available in desired.items() if not available and states[key] == "active")
             restored = tuple(entries[key] for key, available in desired.items() if available and states[key] != "active")
             if withdrawn:

@@ -66,9 +66,9 @@ class CoalescingEmbeddingModel:
         return self._model.profile
 
     async def embed(self, texts: tuple[str, ...], /) -> EmbeddingResult:
-        loop = asyncio.get_running_loop()
         resolved: dict[str, _VectorResult] = {}
         pending: dict[str, asyncio.Future[_VectorResult]] = {}
+        loop = None
         for text in dict.fromkeys(texts):
             if text in self._cache:
                 self._cache.move_to_end(text)
@@ -76,18 +76,25 @@ class CoalescingEmbeddingModel:
                 continue
             future = self._inflight.get(text)
             if future is None:
+                if loop is None:
+                    loop = asyncio.get_running_loop()
                 future = loop.create_future()
                 future.add_done_callback(_observe_failure)
                 self._inflight[text] = future
                 self._queued.append(text)
             pending[text] = future
         if self._queued and self._flush_handle is None:
+            if loop is None:
+                loop = asyncio.get_running_loop()
             self._flush_handle = (
                 loop.call_later(self._delay, self._dispatch) if self._delay else loop.call_soon(self._dispatch)
             )
-        if pending:
-            completed = await asyncio.gather(*(asyncio.shield(future) for future in pending.values()))
-            resolved.update(zip(pending, completed, strict=True))
+        if not pending:
+            return EmbeddingResult(
+                vectors=tuple(resolved[text].vector for text in texts), usage=InferenceUsage(requests=0)
+            )
+        completed = await asyncio.gather(*(asyncio.shield(future) for future in pending.values()))
+        resolved.update(zip(pending, completed, strict=True))
         batches = {
             result.batch: result.usage
             for result in resolved.values()

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import io
 import json
 from pathlib import Path
 from typing import Never
@@ -67,7 +68,10 @@ def _invalid_constant(value: str) -> Never:
 def _parse_branch(
     value: PiSessionInput,
 ) -> tuple[str, dict[str, dict[str, JsonValue]], list[str]]:
-    lines = (line for line in value.content.decode("utf-8-sig").split("\n") if line.strip())
+    # Decode one physical JSONL record at a time instead of retaining a decoded
+    # copy of the entire log plus a list of every line alongside parsed records.
+    stream = io.TextIOWrapper(io.BytesIO(value.content), encoding="utf-8-sig", newline="")
+    lines = (line for line in stream if line.strip())
     header = json.loads(next(lines, "null"), parse_constant=_invalid_constant)
     if not isinstance(header, dict) or header.get("type") != "session" or type(header.get("version")) is not int:
         raise ValueError("Pi session must start with a version 3 session header")
@@ -227,7 +231,6 @@ class PiSessionConnector:
     async def run(self, session: ConnectorRunSession, /) -> ConnectorRunCompletion:
         raw = await asyncio.to_thread(self.path.read_bytes)
         session_id, records, path = _parse_branch(PiSessionInput(content=raw, leaf_id=self.leaf_id))
-        events = _events(session_id, records, path)
         imported: dict[str, str] = {}
         if session.checkpoint is not None:
             checkpoint = _PiCheckpoint.model_validate(session.checkpoint)
@@ -238,8 +241,9 @@ class PiSessionConnector:
         for event_id, fingerprint in imported.items():
             if event_id not in records or _digest(records[event_id]) != fingerprint:
                 raise ValueError(f"Previously imported Pi event {event_id!r} was removed or rewritten")
-        pending = [(event, _digest(event.record)) for event in events if event.event_id not in imported]
-        for event, fingerprint in pending:
+        pending_path = [event_id for event_id in path if event_id not in imported]
+        for event in _events(session_id, records, pending_path):
+            fingerprint = _digest(event.record)
             outcome = await session.submit(_identity(event), _SOURCE_TYPE, event)
             if outcome.status is not ConnectorSubmissionStatus.ACCEPTED:
                 return ConnectorRunCompletion(status=ConnectorRunStatus.INCOMPLETE)
