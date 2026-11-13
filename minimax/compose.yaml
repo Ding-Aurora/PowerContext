@@ -1,0 +1,11 @@
+services:
+  seekdb:
+    image: oceanbase/seekdb:1.0.0.0
+    ports:
+      - "127.0.0.1:2881:2881"
+    environment:
+      ROOT_PASSWORD: ${SDD_DB_PASSWORD:?Set SDD_DB_PASSWORD}
+    volumes:
+      - seekdb-data:/var/lib/oceanbase
+volumes:
+  seekdb-data:

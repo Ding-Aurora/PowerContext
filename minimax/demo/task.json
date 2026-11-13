@@ -1,0 +1,6 @@
+{
+  "id": "catalog-status-filter",
+  "description": "Implement CAT-002 status filtering in list_products. Preserve CAT-001 category filtering, input order and independent shallow copies. Run target and regression tests without changing tests.",
+  "query": "catalog status category products",
+  "required_sources": ["demo/specs/catalog.md", "demo/catalog.py", "demo/tests/test_catalog.py"]
+}
