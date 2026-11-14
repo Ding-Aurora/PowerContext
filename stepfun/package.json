@@ -1,0 +1,1 @@
+{"name":"pocket-seek","version":"1.0.0","private":true,"type":"module","scripts":{"dev":"node server.mjs","build":"vite build","start":"node server.mjs","test":"node --test tests.mjs"},"dependencies":{"seekdb":"1.4.0","@huggingface/transformers":"3.8.1","express":"4.21.2","vite":"5.4.21"}}
