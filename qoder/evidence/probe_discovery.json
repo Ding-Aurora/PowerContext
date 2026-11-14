@@ -1,0 +1,38 @@
+{
+  "/openapi.json": {
+    "status": 200,
+    "keys": [
+      "openapi",
+      "info",
+      "paths",
+      "components",
+      "security",
+      "x-powercontext-feature-contracts"
+    ]
+  },
+  "/health": {
+    "status": 404,
+    "keys": [
+      "detail"
+    ]
+  },
+  "/healthz": {
+    "status": 404,
+    "keys": [
+      "detail"
+    ]
+  },
+  "/docs": {
+    "status": null,
+    "keys": [
+      "connection_error",
+      "detail"
+    ]
+  },
+  "/v1/health": {
+    "status": 404,
+    "keys": [
+      "detail"
+    ]
+  }
+}

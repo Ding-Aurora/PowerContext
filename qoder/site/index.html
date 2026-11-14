@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>研究续航站 · 用 PowerContext 记住你的研究</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="hero">
+    <div class="wrap">
+      <div class="badge">PowerContext 持久化上下文 · 1.5.1</div>
+      <h1>研究续航站</h1>
+      <p class="sub">隔几天回来，忘记上次进展、失败尝试和下一步？<br />保存一次记录，下次打开就有<strong>有依据</strong>的进度回顾和续做清单。</p>
+      <div class="cta">
+        <a class="btn primary" href="#try">体验方式</a>
+        <a class="btn ghost" href="#evidence">真实运行证据</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section class="problem">
+      <h2>解决什么问题</h2>
+      <div class="cards three">
+        <div class="card"><h3>进展记不清</h3><p>隔几天回到课题，想不起上次做到哪一步、哪些已经验证过。</p></div>
+        <div class="card"><h3>失败被重复</h3><p>曾经踩过的坑、试过的方法没有沉淀，反复重试同样的错误。</p></div>
+        <div class="card"><h3>下一步不明确</h3><p>缺少一份基于真实记录的续做清单，重新进入状态成本高。</p></div>
+      </div>
+    </section>
+
+    <section class="features">
+      <h2>核心功能</h2>
+      <div class="cards two">
+        <div class="card"><h3>研究项目与目标</h3><p>创建项目并录入研究目标，项目标识与 scope 由后端选择保存。</p></div>
+        <div class="card"><h3>结构化保存</h3><p>记录本次进展、已尝试方法、遇到的问题、下一步，真实写入 PowerContext，成功才提示。</p></div>
+        <div class="card"><h3>重开召回</h3><p>重新打开应用，按项目召回历史，展示可追溯原始记录与续做清单，每条带来源引用。</p></div>
+        <div class="card"><h3>项目隔离</h3><p>项目 A 的记录不会出现在项目 B；PowerContext 不可用时如实报错，不伪造历史。</p></div>
+      </div>
+    </section>
+
+    <section class="arch">
+      <h2>技术架构</h2>
+      <p class="flow">浏览器（轻量 Web UI） → 服务端代理（Python 标准库，持有凭据） → PowerContext 1.5.1（SQLite 持久化）</p>
+      <ul class="points">
+        <li>不使用进程内数组或浏览器 localStorage 充当记忆。</li>
+        <li>续做清单由「结构化输入 + 确定性模板」生成，无需模型密钥，绝不编造未发生的进展。</li>
+        <li>PowerContext token 只在服务端，绝不下发浏览器或写入日志；证据中统一脱敏。</li>
+      </ul>
+    </section>
+
+    <section id="evidence" class="evidence">
+      <h2>真实运行证据</h2>
+      <p>以下均在真实 PowerContext 1.5.1 上运行得出，非模拟。原始文件位于项目 <code>evidence/</code> 目录。</p>
+      <div class="stats">
+        <div class="stat"><b>6/6</b><span>端到端验收样例通过</span></div>
+        <div class="stat"><b>9/9</b><span>离线单元测试通过</span></div>
+        <div class="stat"><b>502</b><span>服务停止时如实报错</span></div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>验收样例</th><th>实际结果</th><th>状态</th></tr></thead>
+          <tbody>
+            <tr><td>创建项目并录入目标</td><td>201，公开视图不含 scope_id/token</td><td class="pass">PASS</td></tr>
+            <tr><td>保存四类记录并真实写入</td><td>saved=true，写入 4 条原子记忆</td><td class="pass">PASS</td></tr>
+            <tr><td>重开按项目召回</td><td>召回下一步/待解决，带引用，未谎称 B 组已完成</td><td class="pass">PASS</td></tr>
+            <tr><td>项目隔离</td><td>空白项目无历史、不含他项目内容</td><td class="pass">PASS</td></tr>
+            <tr><td>停止服务后保存</td><td>返回 502、saved=false、如实报不可用</td><td class="pass">PASS</td></tr>
+            <tr><td>重启后记录仍在</td><td>保留数据目录重启后仍可召回</td><td class="pass">PASS</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="note">诚实声明：浏览器界面截图、公开 URL、账号 UID 与开发录屏<strong>未采集 / 未发布</strong>，因此不标注为已通过赛事全部验收。</p>
+    </section>
+
+    <section id="try" class="try">
+      <h2>体验方式（本地）</h2>
+      <ol>
+        <li>启动 PowerContext（SQLite 轻量模式）：<code>scripts/start_powercontext.ps1</code></li>
+        <li>（可选）<code>copy .env.example .env</code>，配置 <code>POWERCONTEXT_URL</code> 等</li>
+        <li>启动应用：<code>scripts/start_app.ps1</code>（或 <code>python server.py</code>）</li>
+        <li>打开 <code>http://127.0.0.1:8688/</code></li>
+        <li>运行真实验收：<code>python tests/verify_samples.py</code></li>
+      </ol>
+      <p class="note">需要本机可用的 <code>powercontext</code> 可执行（参考版本 1.5.1）。</p>
+    </section>
+
+    <section class="limits">
+      <h2>边界</h2>
+      <p>scope_id 是数据分区、不是授权。本演示版仅支持单人本地使用，不宣称多租户隔离；公网/多人使用需另加可信鉴权。</p>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <div class="wrap">
+      <span>研究续航站 · PowerContext 1.5.1</span>
+      <span><a href="https://github.com/Ding-Aurora/PowerContext/tree/2026-competition-ecosystem-qoder/qoder">完整源码与运行说明</a></span>
+    </div>
+  </footer>
+</body>
+</html>

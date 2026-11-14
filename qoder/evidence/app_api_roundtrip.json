@@ -1,0 +1,128 @@
+{
+  "create": {
+    "ok": true,
+    "project": {
+      "id": "1fb4631590d3",
+      "name": "UI 走查演示项目",
+      "goal": "验证网页端到端流程",
+      "created_at": "2026-11-14T14:02:50+08:00",
+      "scope": "scp_69ag…"
+    }
+  },
+  "save": {
+    "ok": true,
+    "saved": true,
+    "session": "2026-11-14T14:02:51+08:00",
+    "records": [
+      {
+        "kind": "progress",
+        "state": "active",
+        "family": "atomic-memory",
+        "artifact_id": "art_db9bb077967e429095fedaf339eb3917",
+        "revision": 1
+      },
+      {
+        "kind": "problem",
+        "state": "active",
+        "family": "atomic-memory",
+        "artifact_id": "art_34e945fc5449483ea223f2e6f29be71b",
+        "revision": 1
+      },
+      {
+        "kind": "next",
+        "state": "active",
+        "family": "atomic-memory",
+        "artifact_id": "art_0547f4ab18254f8aa9236eeff5643b64",
+        "revision": 1
+      }
+    ]
+  },
+  "recall": {
+    "ok": true,
+    "project": {
+      "id": "1fb4631590d3",
+      "name": "UI 走查演示项目",
+      "goal": "验证网页端到端流程",
+      "created_at": "2026-11-14T14:02:50+08:00",
+      "scope": "scp_69ag…"
+    },
+    "checklist": {
+      "has_history": true,
+      "headline": "欢迎回来，继续「2026-11-14T14:02:51+08:00」",
+      "items": [
+        {
+          "text": "研究目标：验证网页端到端流程",
+          "source": "project",
+          "cite": null
+        },
+        {
+          "text": "用浏览器截图作为证据",
+          "source": "next",
+          "cite": {
+            "family": "atomic-memory",
+            "artifact_id": "art_0547f4ab18254f8aa9236eeff5643b64",
+            "revision": 1
+          }
+        },
+        {
+          "text": "待解决：无",
+          "source": "problem",
+          "cite": {
+            "family": "atomic-memory",
+            "artifact_id": "art_34e945fc5449483ea223f2e6f29be71b",
+            "revision": 1
+          }
+        },
+        {
+          "text": "上次已完成（勿重复）：打通网页创建/保存流程",
+          "source": "progress",
+          "cite": {
+            "family": "atomic-memory",
+            "artifact_id": "art_db9bb077967e429095fedaf339eb3917",
+            "revision": 1
+          }
+        }
+      ],
+      "note": "以下条目直接摘自你保存的原始记录，未使用任何模型推断。",
+      "latest_session": "2026-11-14T14:02:51+08:00"
+    },
+    "sessions": [
+      {
+        "session": "2026-11-14T14:02:51+08:00",
+        "fields": {
+          "next": "用浏览器截图作为证据",
+          "problem": "无",
+          "progress": "打通网页创建/保存流程"
+        },
+        "citations": [
+          {
+            "kind": "next",
+            "label": "下一步",
+            "family": "atomic-memory",
+            "artifact_id": "art_0547f4ab18254f8aa9236eeff5643b64",
+            "revision": 1,
+            "state": "active"
+          },
+          {
+            "kind": "problem",
+            "label": "遇到的问题",
+            "family": "atomic-memory",
+            "artifact_id": "art_34e945fc5449483ea223f2e6f29be71b",
+            "revision": 1,
+            "state": "active"
+          },
+          {
+            "kind": "progress",
+            "label": "本次进展",
+            "family": "atomic-memory",
+            "artifact_id": "art_db9bb077967e429095fedaf339eb3917",
+            "revision": 1,
+            "state": "active"
+          }
+        ]
+      }
+    ],
+    "prepared_status": "empty",
+    "prepared_content": null
+  }
+}

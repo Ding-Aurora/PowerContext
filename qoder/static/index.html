@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>研究续航站 · Research Continuation Station</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo">🔬</span>
+      <div>
+        <h1>研究续航站</h1>
+        <p class="tag">隔几天回来，也能接着上次干 —— 记忆由 PowerContext 持久化</p>
+      </div>
+    </div>
+    <div id="status" class="status">检测 PowerContext 连接…</div>
+  </header>
+
+  <main class="layout">
+    <aside class="sidebar">
+      <h2>研究项目</h2>
+      <ul id="projectList" class="project-list"></ul>
+      <button id="newProjectBtn" class="btn primary">＋ 新建项目</button>
+
+      <form id="newProjectForm" class="card hidden">
+        <h3>新建研究项目</h3>
+        <label>项目名称<input id="projName" required placeholder="例如：番茄浇水方案对比" /></label>
+        <label>研究目标<input id="projGoal" required placeholder="例如：比较两种番茄浇水方案的产量差异" /></label>
+        <div class="row">
+          <button type="submit" class="btn primary">创建</button>
+          <button type="button" id="cancelNew" class="btn">取消</button>
+        </div>
+        <p class="hint">项目标识与 scope 由后端选择并保存，浏览器不会拿到凭据。</p>
+      </form>
+    </aside>
+
+    <section class="content">
+      <div id="emptyState" class="empty">
+        <p>请选择左侧项目，或新建一个研究项目。</p>
+      </div>
+
+      <div id="workbench" class="hidden">
+        <div class="project-head">
+          <h2 id="projTitle"></h2>
+          <p id="projGoalText" class="goal"></p>
+          <p id="scopeNote" class="scope-note"></p>
+        </div>
+
+        <div class="cols">
+          <div class="card">
+            <h3>保存本次记录</h3>
+            <form id="sessionForm">
+              <label>本次进展<textarea id="progress" rows="3" placeholder="已完成 / 已得到的结果"></textarea></label>
+              <label>已尝试方法<textarea id="attempt" rows="3" placeholder="试过哪些做法"></textarea></label>
+              <label>遇到的问题<textarea id="problem" rows="3" placeholder="卡在哪里、什么失败了"></textarea></label>
+              <label>下一步<textarea id="next" rows="3" placeholder="接下来要做什么"></textarea></label>
+              <button type="submit" class="btn primary">保存到 PowerContext</button>
+              <span id="saveResult" class="result"></span>
+            </form>
+            <p class="hint">只有真实写入 PowerContext 成功后才会提示成功；服务不可用会如实报错。</p>
+          </div>
+
+          <div class="card">
+            <h3>续做清单</h3>
+            <div class="recall-search">
+              <input id="recallQuery" placeholder="想问的问题，例如：下一步做什么" />
+              <button id="recallBtn" class="btn">召回</button>
+            </div>
+            <div id="checklist" class="checklist"></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>历史原始记录（可追溯）</h3>
+          <p class="hint">每条都带 PowerContext 制品引用（artifact / revision），可回溯到真实保存内容。</p>
+          <div id="history" class="history"></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="foot">
+    演示版仅支持单人本地使用；scope 是数据分区、不是多租户授权。PowerContext 参考版本 1.5.1。
+  </footer>
+
+  <script src="/app.js"></script>
+</body>
+</html>

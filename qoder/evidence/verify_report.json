@@ -1,0 +1,98 @@
+{
+  "started_at": "2026-11-14T05:50:42.419919+00:00",
+  "powercontext_reference_version": "1.5.1",
+  "environment": {
+    "os": "nt",
+    "python": "3.11.4",
+    "pc_port": 8791,
+    "app_port": 8891
+  },
+  "samples": [
+    {
+      "name": "样例1 创建研究项目并录入目标",
+      "expected": "返回 201、有项目 id、公开视图不含 scope_id/token",
+      "actual": {
+        "status": 201,
+        "project": {
+          "id": "e207bc9509e2",
+          "name": "番茄浇水对比（演示）",
+          "goal": "比较两种番茄浇水方案",
+          "created_at": "2026-11-14T13:50:57+08:00",
+          "scope": "scp_5s13…"
+        }
+      },
+      "passed": true,
+      "detail": null,
+      "checked_at": "2026-11-14T05:50:57.863754+00:00"
+    },
+    {
+      "name": "样例2 保存本次记录并真实写入 PowerContext",
+      "expected": "返回 201、saved=true、写入若干条记忆记录",
+      "actual": {
+        "status": 201,
+        "saved": true,
+        "record_count": 4
+      },
+      "passed": true,
+      "detail": null,
+      "checked_at": "2026-11-14T05:50:59.602234+00:00"
+    },
+    {
+      "name": "样例3 重开应用后按项目召回、含可追溯引用且不得谎称 B 组完成",
+      "expected": "召回包含更换电池/补采数据；不得出现 B 组已完成；条目带 artifact 引用",
+      "actual": {
+        "prepared_status": "empty",
+        "checklist_text": "研究目标：比较两种番茄浇水方案\n更换 B 组电池后补采数据\n待解决：B 组传感器故障，数据缺失\n上次已完成（勿重复）：已完成 A 组浇水记录",
+        "recalled_next": true,
+        "claims_b_done": false,
+        "has_citation": true
+      },
+      "passed": true,
+      "detail": null,
+      "checked_at": "2026-11-14T05:51:01.718900+00:00"
+    },
+    {
+      "name": "样例4 项目隔离：空白项目不得召回项目 A 的记录",
+      "expected": "空白项目无历史记录、不含番茄/电池内容",
+      "actual": {
+        "prepared_status": "empty",
+        "has_history": false,
+        "leaked": false
+      },
+      "passed": true,
+      "detail": null,
+      "checked_at": "2026-11-14T05:51:01.782968+00:00"
+    },
+    {
+      "name": "样例5a 停止 PowerContext 后保存必须如实失败",
+      "expected": "返回 5xx、saved 不为真、给出不可用信息（不伪造成功）",
+      "actual": {
+        "status": 502,
+        "body": {
+          "ok": false,
+          "error": "powercontext_unavailable",
+          "saved": false,
+          "message": "PowerContext 保存失败，本次记录未存入：PowerContext service is unreachable: ConnectionRefusedError(10061, '由于目标计算机积极拒绝，无法连接。', None, 10061, None)"
+        }
+      },
+      "passed": true,
+      "detail": null,
+      "checked_at": "2026-11-14T05:51:05.332682+00:00"
+    },
+    {
+      "name": "样例5b 重启 PowerContext 后已有记录仍存在",
+      "expected": "重新可达且原记录可召回",
+      "actual": {
+        "prepared_status": "ready",
+        "has_history": true,
+        "still_next": true
+      },
+      "passed": true,
+      "detail": null,
+      "checked_at": "2026-11-14T05:51:18.235296+00:00"
+    }
+  ],
+  "notes": [],
+  "verdict": "PASS",
+  "finished_at": "2026-11-14T05:51:21.254112+00:00"
+}

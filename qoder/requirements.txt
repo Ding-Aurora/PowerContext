@@ -1,0 +1,6 @@
+# 研究续航站后端只使用 Python 标准库（http.server / urllib），无第三方 Web 依赖。
+# 应用运行不需要 pip 安装任何包。
+
+# 仅"真实验证/端到端样例"依赖本机已安装的 PowerContext Server（不属于本应用代码）。
+# 官方参考版本，用于启动被代理的 PowerContext 服务：
+powercontext[cli,server]==1.5.1

@@ -1,0 +1,20 @@
+{
+  "status": 200,
+  "body": {
+    "entries": [
+      {
+        "artifact": {
+          "family": "atomic-memory",
+          "artifact_id": "art_e0a34766d86b457ab017a492a75d33ad",
+          "revision": 1
+        },
+        "kind": "progress",
+        "text": "Completed group A watering logs; group B sensor failed; next step: replace batteries and re-collect data.",
+        "state": "active",
+        "state_version": 0,
+        "merged_into_id": null
+      }
+    ],
+    "next_cursor": null
+  }
+}

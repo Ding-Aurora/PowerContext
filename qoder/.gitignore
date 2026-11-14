@@ -1,0 +1,25 @@
+# 凭据与本地配置
+.env
+
+# 本地 PowerContext 服务数据（含真实记录，绝不提交）
+.pc-home/
+*.db
+*.db-wal
+*.db-shm
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# 运行期状态
+data/projects.json
+data/*.tmp
+
+# 端到端验收产生的临时数据
+.verify-pc-home/
+.verify-data/
+
+# 预览缓存
+site/.cache/
