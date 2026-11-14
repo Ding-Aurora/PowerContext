@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import hashlib
 import io
-import json
 import re
 from collections import Counter
 from math import log1p
@@ -74,7 +73,10 @@ def parse_pdf_document(value: PDFDocumentInput) -> tuple[PDFPageInput, ...]:
 
 
 class PDFPageSource(Source):
-    page: PDFPageInput
+    document_id: str
+    document_sha256: str
+    page_number: int
+    text: str
 
 
 class _PDFPageAdapter:
@@ -83,15 +85,12 @@ class _PDFPageAdapter:
     source_class = PDFPageSource
 
     async def resolve(self, value: PDFPageInput, /) -> PDFPageSource:
-        identity = json.dumps(
-            (value.document_id, value.document_sha256, value.page_number),
-            ensure_ascii=False, separators=(",", ":"),
-        )
+        identity = f"{value.document_id}\0{value.document_sha256}\0{value.page_number}"
         name = "pdf:" + hashlib.sha256(identity.encode("utf-8")).hexdigest()
-        return PDFPageSource(name=name, materialization=SourceMaterialization.CAPTURED, page=value)
+        return PDFPageSource(name=name, materialization=SourceMaterialization.CAPTURED, **value.model_dump())
 
     async def read(self, source: PDFPageSource, /) -> PDFPageInput:
-        return source.page
+        return PDFPageInput.model_validate(source.model_dump(include=set(PDFPageInput.model_fields)))
 
 
 class _PDFPageText:
@@ -101,7 +100,7 @@ class _PDFPageText:
     output_class = TextEvidence
 
     def project(self, source: PDFPageSource, /) -> TextEvidence:
-        page = source.page
+        page = source
         return TextEvidence(
             source_type="pdf-page",
             source_id=source.name,
@@ -138,6 +137,28 @@ _SYNONYMS = (
     ("dividends", "distributions"),
     ("repurchases", "buybacks"),
 )
+
+_SECTIONS = (
+    (r"income|earnings|profit|revenue|margin|ebitda|p&l",
+     r"(?:consolidated\s+)?statements?\s+of\s+(?:income|operations|earnings|profit)"),
+    (r"cash|capex|capital expend|depreciation|amortization|ebitda|d&a",
+     r"(?:consolidated\s+)?statements?\s+of\s+cash\s+flows?"),
+    (r"balance sheet|assets|liabilit|equity|working capital|inventory|inventories|receivable",
+     r"(?:consolidated\s+)?(?:balance\s+sheets?|statements?\s+of\s+financial\s+position)"),
+    (r"legal|litigation|lawsuit|battles|contingenc",
+     r"(?:item\s+3[. :–-]*)?(?:legal\s+proceedings|commitments\s+and\s+contingencies)"),
+    (r"geograph|regions|countries|segments|operates",
+     r"(?:our\s+)?(?:divisions|reportable\s+segments|operating\s+segments|geographic(?:al)?\s+information)"),
+)
+
+
+def _has_heading(text: str, pattern: str) -> bool:
+    lines = [line.strip().casefold() for line in text.partition("\n")[2].splitlines() if line.strip()]
+    return any(
+        len(line) < 140
+        and re.fullmatch(pattern + r"[ :.–-]*", line) is not None
+        for line in lines[:12]
+    )
 
 
 def _tokens(text: str) -> list[str]:
@@ -208,9 +229,18 @@ async def search_pdf_pages(
         if rank is not None:
             score += 0.2 / (rank + 1)
         scores.append((score, index))
+    # Financial calculations can require several statements. Reserve a small
+    # share of the result for each requested section before lexical filling.
+    ranked = [index for _, index in sorted(scores, key=lambda item: (-item[0], item[1]))]
+    sections = [heading for query, heading in _SECTIONS if re.search(query, question.casefold())]
+    selected = []
+    quota = min(3, max(1, limit // max(1, len(sections) * 2)))
+    for heading in sections:
+        matches = [index for index in ranked if _has_heading(pages[index].entry.text, heading)]
+        selected.extend(matches[:quota])
     result = []
     seen = set()
-    for _, index in sorted(scores, key=lambda item: (-item[0], item[1])):
+    for index in selected + ranked:
         record = pages[index]
         identity = tuple(sorted(
             (source.source_type, source.source_id)
